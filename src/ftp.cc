@@ -31,8 +31,8 @@ void FtpServer::onConnection(const TcpConnectionPtr& conn)
            << (conn->connected() ? "UP" : "DOWN");
 
   mapSession_.insert( std::make_pair(conn, FtpSessionPtr(new FtpSession( conn )) ));
-  StringPiece buf("220 the serviceis ready(khaki ftpd1.0.0 free software) \r\n");
-  conn->send( buf );
+  //StringPiece buf("220 the serviceis ready(khaki ftpd1.0.0 free software) \r\n");
+  //conn->send( buf );
   LOG_INFO << "new client" ;
 }
 
@@ -46,7 +46,7 @@ void FtpServer::onMessage(const TcpConnectionPtr& conn,
   LOG_INFO << "msg : " << msg ;
   /// 处理命令格式
   FtpCommand stcCmd( msg.c_str() );
-
+  LOG_INFO << stcCmd.getCmd() << ", " << stcCmd.getParam();
   MapLinkSession::iterator it = mapSession_.find( const_cast<TcpConnectionPtr&>(conn) );
   if ( it != mapSession_.end() )
   {

@@ -30,10 +30,14 @@ public:
 private:
     typedef boost::function<void(std::string &)> FtpCallback;
 
-    typedef std::map< std::string, cmd_callback > mapHandlerContainer;
-    mapHandlerContainer mapHandlerFunc;
+    typedef std::map< std::string, cmd_callback > MapHandlerContainer;
+    MapHandlerContainer mapHandlerFunc;
+
+    typedef std::map< int, std::string > MapResponseContainer;
+    MapResponseContainer mapResponse;
 
     void InitOpcodeHandler();
+    void InitReponseCode();
 
     FtpClient cliRole;
     const TcpConnectionPtr& conn;
