@@ -19,7 +19,7 @@ namespace net
 class FtpSession
 {
 public:
-    FtpSession( const TcpConnectionPtr& co );
+    FtpSession( TcpConnectionPtr co );
 
     ~FtpSession();
 
@@ -40,7 +40,7 @@ private:
     void InitReponseCode();
 
     FtpClient cliRole;
-    const TcpConnectionPtr& conn;
+    TcpConnectionPtr conn;
 private:
     void HandlerFtpAuth(FtpCommand& cmd);
     void HandlerFtpPort(FtpCommand& cmd);

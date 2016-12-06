@@ -2,12 +2,15 @@
 
 #include <muduo/base/Logging.h>
 
+#include <stdio.h>
+#include <unistd.h>
+
 namespace muduo
 {
 namespace net
 {
 
-FtpSession::FtpSession( const TcpConnectionPtr& co ) : conn(co)
+FtpSession::FtpSession( TcpConnectionPtr co ) : conn(co)
 {
     InitOpcodeHandler();
     InitReponseCode();
@@ -44,13 +47,18 @@ void FtpSession::InitOpcodeHandler()
     mapHandlerFunc["PORT"] = &FtpSession::HandlerFtpPort;
     mapHandlerFunc["PASV"] = &FtpSession::HandlerFtpPasv;
     mapHandlerFunc["LIST"] = &FtpSession::HandlerFtpList;
-    mapHandlerFunc["QUIT"] = &FtpSession::HandlerFtpQuit;
-    mapHandlerFunc["PWD"]  = &FtpSession::HandlerFtpPwd;
     mapHandlerFunc["CWD"]  = &FtpSession::HandlerFtpCwd;
-    mapHandlerFunc["USER"] = &FtpSession::HandlerFtpUser;
-    mapHandlerFunc["PASS"] = &FtpSession::HandlerFtpPass;
+    mapHandlerFunc["QUIT"] = &FtpSession::HandlerFtpQuit;
     mapHandlerFunc["SYST"] = &FtpSession::HandlerFtpSyst;
     mapHandlerFunc["DELE"] = &FtpSession::HandlerFtpDele;
+    mapHandlerFunc["RETR"] = &FtpSession::HandlerFtpRetr;
+    mapHandlerFunc["SIZE"] = &FtpSession::HandlerFtpSize;
+    mapHandlerFunc["RMD"]  = &FtpSession::HandlerFtpRmd;
+    mapHandlerFunc["STOR"] = &FtpSession::HandlerFtpStor;
+    mapHandlerFunc["NLST"] = &FtpSession::HandlerFtpNlst;
+    mapHandlerFunc["MKD"]  = &FtpSession::HandlerFtpMkd;
+    mapHandlerFunc["TYPE"] = &FtpSession::HandlerFtpType;
+    mapHandlerFunc["CDUP"] = &FtpSession::HandlerFtpCdup;
 }
 
 void FtpSession::InitReponseCode()
@@ -77,21 +85,20 @@ void FtpSession::HandlerFtpUser(FtpCommand& cmd)
 {
     cliRole.setUser( cmd.getParam() );
 
-    StringPiece buf( mapResponse[220] );
+    StringPiece buf( mapResponse[331] );
     conn->send( buf );
 }
 
 void FtpSession::HandlerFtpPass(FtpCommand& cmd)
 {
+    cliRole.setPass( cmd.getParam() );
 
+    StringPiece buf( mapResponse[230] );
+    conn->send( buf );
 }
 
 void FtpSession::HandlerFtpAuth(FtpCommand& cmd)
 {
-    LOG_INFO << cmd.getCmd() << "; param : " << cmd.getParam();
-    if ( cliRole.getStatus() ) return;
-
-    cliRole.setStatus( true );
 }
 
 void FtpSession::HandlerFtpPort(FtpCommand& cmd)
@@ -101,7 +108,7 @@ void FtpSession::HandlerFtpPort(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpPasv(FtpCommand& cmd)
 {
-    LOG_INFO << cmd.getCmd() << "; param : " << cmd.getParam();
+    
 }
 void FtpSession::HandlerFtpList(FtpCommand& cmd)
 {
@@ -115,12 +122,24 @@ void FtpSession::HandlerFtpQuit(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpPwd(FtpCommand& cmd)
 {
+    char pwd[4096] = {0};
+    char path[4096] = {0};
+    snprintf( pwd, sizeof pwd,  mapResponse[257].c_str(), getcwd( path, sizeof path ) );
 
+    LOG_INFO << pwd;
+    StringPiece buf( pwd );
+    conn->send( buf );
 }
 
 void FtpSession::HandlerFtpCwd(FtpCommand& cmd)
 {
+    char pwd[4096] = {0};
+    if ( chdir( cmd.getParam().c_str() ) == -1 ) return;
+    snprintf( pwd, sizeof pwd,  mapResponse[250].c_str(), "Directory successfully changed" );
 
+    LOG_INFO << pwd;
+    StringPiece buf( pwd );
+    conn->send( buf );
 }
 
 void FtpSession::HandlerFtpSyst(FtpCommand& cmd)
@@ -160,7 +179,21 @@ void FtpSession::HandlerFtpMkd(FtpCommand& cmd)
 }
 void FtpSession::HandlerFtpType(FtpCommand& cmd)
 {
+    char pwd[4096] = {0};
+    if ( cmd.getParam() == "A" )
+    {
+        cliRole.setAscii( true );
+        snprintf( pwd, sizeof pwd,  mapResponse[200].c_str(), "Switching to ASCII mode." );
+    }
+    else
+    {
+        cliRole.setAscii( false );
+        snprintf( pwd, sizeof pwd,  mapResponse[200].c_str(), "Switching to BINARY mode." );
+    }
 
+    LOG_INFO << pwd;
+    StringPiece buf( pwd );
+    conn->send( buf );
 }
 void FtpSession::HandlerFtpCdup(FtpCommand& cmd)
 {
