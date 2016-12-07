@@ -9,10 +9,11 @@
 using namespace muduo;
 using namespace muduo::net;
 
-FtpServer::FtpServer(EventLoop* loop,
+FtpServer::FtpServer(EventLoop* lo,
                              const InetAddress& listenAddr)
-  : server_(loop, listenAddr, "FtpServer")
+  : server_(lo, listenAddr, "FtpServer")
 {
+  loop = lo;
   server_.setConnectionCallback(
       boost::bind(&FtpServer::onConnection, this, _1));
   server_.setMessageCallback(
@@ -30,11 +31,10 @@ void FtpServer::onConnection(const TcpConnectionPtr& conn)
            << conn->localAddress().toIpPort() << " is "
            << (conn->connected() ? "UP" : "DOWN");
 
-  mapSession_.insert( std::make_pair(conn, FtpSessionPtr(new FtpSession( const_cast<TcpConnectionPtr&>(conn) )) ));
+  mapSession_.insert( std::make_pair(conn, FtpSessionPtr(new FtpSession( loop, const_cast<TcpConnectionPtr&>(conn) )) ));
 
   StringPiece buf("220 the serviceis ready(khaki ftpd1.0.0 free software) \r\n");
   conn->send( buf );
-  LOG_INFO << "new client" ;
 }
 
 void FtpServer::onMessage(const TcpConnectionPtr& conn,
@@ -47,7 +47,7 @@ void FtpServer::onMessage(const TcpConnectionPtr& conn,
   LOG_INFO << "msg : " << msg ;
 
   FtpCommand stcCmd( msg.c_str() );
-  //LOG_INFO << stcCmd.getCmd() << ", " << stcCmd.getParam();
+
   MapLinkSession::iterator it = mapSession_.find( const_cast<TcpConnectionPtr&>(conn) );
   if ( it != mapSession_.end() )
   {

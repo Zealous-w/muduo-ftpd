@@ -25,7 +25,9 @@ class FtpServer
   typedef std::map<muduo::net::TcpConnectionPtr, FtpSessionPtr> MapLinkSession;
 
   muduo::net::TcpServer server_;
+  muduo::net::EventLoop* loop;
   MapLinkSession mapSession_;
+
 };
 
 #endif  // MUDUO_FTP_H
