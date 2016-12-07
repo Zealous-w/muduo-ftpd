@@ -2,6 +2,7 @@
 #define MUDUO_FTP_SESSION_H
 
 #include "basic.h"
+#include "util.h"
 
 #include <string>
 #include <map>
@@ -16,6 +17,7 @@ namespace muduo
 namespace net
 {
 
+///////////////////////////////////
 class PasvServer
 {
 public:
@@ -35,6 +37,7 @@ private:
     TcpConnectionPtr conn_;
 };
 
+////////////////////////////////////
 class PortClient
 {
 public:
@@ -52,6 +55,7 @@ private:
     TcpClient client_;
 };
 
+////////////////////////////////////
 class FtpSession
 {
 public:
@@ -64,7 +68,6 @@ public:
 
     void ExecuteCmd( FtpCommand& cmd );
 private:
-    typedef boost::function<void(std::string &)> FtpCallback;
     typedef boost::shared_ptr<PasvServer> PasvServerPtr;
     typedef boost::weak_ptr<PasvServer>   PasvWeakPtr;
     typedef boost::shared_ptr<PortClient> PortClientPtr;

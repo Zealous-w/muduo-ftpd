@@ -189,7 +189,6 @@ void FtpSession::HandlerFtpPort(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpPasv(FtpCommand& cmd)
 {
-    char pwd[4096] = {0};
     PasvWeakPtr pasvWeak(pasvSer);
     if ( !pasvWeak.expired() )
     {
@@ -198,10 +197,11 @@ void FtpSession::HandlerFtpPasv(FtpCommand& cmd)
         const struct sockaddr_in* addr = static_cast<const struct sockaddr_in*>(implicit_cast<const void*>(listenAddr.getSockAddr()));
 
         unsigned long  hostip = ntohl( addr->sin_addr.s_addr );
-        snprintf( pwd, sizeof pwd,  mapResponse[227].c_str(), (hostip >> 24) & 0xff,
-                  (hostip >> 16) & 0xff, (hostip >> 8) & 0xff,
-                  hostip & 0xff, (port >> 8) & 0xff, port & 0xff );
-        StringPiece buf( pwd );
+
+        std::string resonse = util::string_format( mapResponse[227], (hostip >> 24) & 0xff,
+                                                   (hostip >> 16) & 0xff, (hostip >> 8) & 0xff,
+                                                   hostip & 0xff, (port >> 8) & 0xff, port & 0xff );
+        StringPiece buf( resonse );
         conn->send( buf );
         return;
     }
@@ -215,12 +215,12 @@ void FtpSession::HandlerFtpPasv(FtpCommand& cmd)
 
     unsigned long  hostip = ntohl( addr->sin_addr.s_addr );
 
-    snprintf( pwd, sizeof pwd,  mapResponse[227].c_str(), (hostip >> 24) & 0xff,
-              (hostip >> 16) & 0xff, (hostip >> 8) & 0xff,
-              hostip & 0xff, (port >> 8) & 0xff, port & 0xff );
+    std::string resonse = util::string_format( mapResponse[227], (hostip >> 24) & 0xff,
+                                               (hostip >> 16) & 0xff, (hostip >> 8) & 0xff,
+                                               hostip & 0xff, (port >> 8) & 0xff, port & 0xff );
 
     pasvSer->start();
-    StringPiece buf( pwd );
+    StringPiece buf( resonse );
     conn->send( buf );
 }
 void FtpSession::HandlerFtpList(FtpCommand& cmd)
@@ -228,8 +228,6 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
     DIR *dir_ptr;
     int mode;
     char liststr[20480] = {0};
-    char response[4096] = {0};
-    char respend[4096] = {0};
 
     struct dirent *direntp;
     struct stat info;
@@ -286,18 +284,19 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
         }
     }
     closedir(dir_ptr);
-    sprintf(liststr, "%s", liststr);
-    sprintf(response,mapResponse[150].c_str(),"Here comes the directory listing.");
-    sprintf(respend,mapResponse[226].c_str(),"Directory send OK.");
 
-    StringPiece buf( response );
-    conn->send( buf );
+    std::string resList = util::string_format( mapResponse[150], "Here comes the directory listing." );
+    std::string resOk = util::string_format( mapResponse[226], "Directory send OK." );
 
-    StringPiece buf3( liststr );
-    pasvSer->send( buf3 );
+    StringPiece bufList( resList );
+    conn->send( bufList );
 
-    StringPiece buf2( respend );
-    conn->send( buf2 );
+    StringPiece bufCon( liststr );
+    pasvSer->send( bufCon );
+
+    StringPiece bufOk( resOk );
+    conn->send( bufOk );
+
     pasvSer.reset();
 }
 
@@ -308,22 +307,20 @@ void FtpSession::HandlerFtpQuit(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpPwd(FtpCommand& cmd)
 {
-    char pwd[4096] = {0};
-    char path[4096] = {0};
-    snprintf( pwd, sizeof pwd,  mapResponse[257].c_str(), getcwd( path, sizeof path ) );
-
-    StringPiece buf( pwd );
+    char path[2096] = {0};
+    std::string response = util::string_format( mapResponse[257], getcwd( path, sizeof path ) );
+    StringPiece buf( response );
     conn->send( buf );
 }
 
 void FtpSession::HandlerFtpCwd(FtpCommand& cmd)
 {
-    char pwd[4096] = {0};
     if ( chdir( cmd.getParam().c_str() ) == -1 ) return;
-    snprintf( pwd, sizeof pwd,  mapResponse[250].c_str(), "Directory successfully changed" );
 
-    LOG_INFO << pwd;
-    StringPiece buf( pwd );
+    std::string response = util::string_format( mapResponse[250], "Directory successfully changed" );
+
+    StringPiece buf( response );
+
     conn->send( buf );
 }
 
@@ -335,7 +332,12 @@ void FtpSession::HandlerFtpSyst(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpDele(FtpCommand& cmd)
 {
+    std::string filename = cmd.getParam();
+    if ( unlink( filename.c_str() ) == -1 ) return;
 
+    std::string response = util::string_format( mapResponse[200], "Delete file successfully." );
+    StringPiece buf( response );
+    conn->send( buf );
 }
 
 void FtpSession::HandlerFtpRetr(FtpCommand& cmd)
@@ -361,26 +363,23 @@ void FtpSession::HandlerFtpRetr(FtpCommand& cmd)
     std::istreambuf_iterator<char> begin(file), end;
     std::string strFile( begin, end );
 
-    char pwd[4096] = {0};
-    char res[4096] = {0};
-    sprintf( pwd, "150 Opening %s mode data connection for %s (%ld bytes).\r\n",
-             strMode.c_str(), filename.c_str(), info.st_size );
-    sprintf( res, mapResponse[226].c_str(), "Transfer complate.");
+    std::string resSize = util::string_format( "150 Opening %s mode data connection for %s (%ld bytes).\r\n",
+                                               strMode.c_str(), filename.c_str(), info.st_size );
+    std::string resTran = util::string_format( mapResponse[226], "Transfer complate." );
 
-    StringPiece buf( pwd );
+    StringPiece buf( resSize );
     conn->send( buf );
 
     StringPiece File( strFile );
     PasvWeakPtr pasvWeak(pasvSer);
-
     if ( !pasvWeak.expired() )
     {
         pasvSer->send( File );
         pasvSer.reset();
     }
 
-    StringPiece buf2( res );
-    conn->send( buf2 );
+    StringPiece bufTran( resTran );
+    conn->send( bufTran );
 }
 
 void FtpSession::HandlerFtpSize(FtpCommand& cmd)
@@ -406,28 +405,28 @@ void FtpSession::HandlerFtpMkd(FtpCommand& cmd)
 }
 void FtpSession::HandlerFtpType(FtpCommand& cmd)
 {
-    char pwd[4096] = {0};
+    std::string response;
     if ( cmd.getParam() == "A" )
     {
         cliRole.setAscii( true );
-        snprintf( pwd, sizeof pwd,  mapResponse[200].c_str(), "Switching to ASCII mode." );
+        response = util::string_format( mapResponse[200], "Switching to ASCII mode." );
     }
     else
     {
         cliRole.setAscii( false );
-        snprintf( pwd, sizeof pwd,  mapResponse[200].c_str(), "Switching to BINARY mode." );
+        response = util::string_format( mapResponse[200], "Switching to BINARY mode." );
     }
 
-    StringPiece buf( pwd );
+    StringPiece buf( response );
     conn->send( buf );
 }
 void FtpSession::HandlerFtpCdup(FtpCommand& cmd)
 {
-    char pwd[4096] = {0};
     if ( chdir( ".." ) == -1 ) return;
-    snprintf( pwd, sizeof pwd,  mapResponse[250].c_str(), "Directory successfully changed" );
-    
-    StringPiece buf( pwd );
+
+    std::string response = util::string_format( mapResponse[250], "Directory successfully changed" );
+
+    StringPiece buf( response );
     conn->send( buf );
 }
 
