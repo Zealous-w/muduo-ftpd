@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iterator>
 #include <iostream>
+#include <fstream>
 
 namespace muduo
 {
@@ -18,13 +19,17 @@ namespace net
 {
 /////////////////////////////////////////
 PasvServer::PasvServer(EventLoop* loop,
-                       const InetAddress& listenAddr)
-        : server_(loop, listenAddr, "PasvServer")
+                       const InetAddress& listenAddr,
+                        FtpClient* cli)
+        : server_(loop, listenAddr, "PasvServer"), cli_(cli)
 {
+    byOnline = false;
     server_.setConnectionCallback(
             boost::bind(&PasvServer::onConnection, this, _1));
     server_.setMessageCallback(
             boost::bind(&PasvServer::onMessage, this, _1, _2, _3));
+    server_.setWriteCompleteCallback(
+            boost::bind(&PasvServer::onWriteComplete, this, _1));
 }
 
 void PasvServer::start()
@@ -38,16 +43,30 @@ void PasvServer::send( StringPiece& str )
     LOG_INFO << "conn usecount : " << conn_.use_count();
 }
 
+bool PasvServer::isOnline()
+{
+    TcpConnWeakPtr weak( conn_ );
+    if ( !weak.expired() ) return false;
+
+    return true;
+}
+
+bool PasvServer::getStatus()
+{
+    return byOnline;
+}
+
 void PasvServer::onConnection(const muduo::net::TcpConnectionPtr& conn)
 {
-    conn_ = conn;
-    if ( conn_.get() == NULL )
+    if (conn->connected())
     {
-        LOG_INFO << "ERROR";
+        conn_ = conn;
+        LOG_INFO << "connect success : " << conn_.use_count();
+        byOnline = true;
     }
     else
     {
-        LOG_INFO << "connect success : " << conn_.use_count();
+        if( cb_ ) cb_();
     }
 }
 
@@ -55,7 +74,16 @@ void PasvServer::onMessage(const muduo::net::TcpConnectionPtr& conn,
                muduo::net::Buffer* buf,
                muduo::Timestamp time)
 {
-    LOG_INFO << "message success";
+    StringPiece str = buf->toStringPiece();
+
+    std::fstream fout( cli_->getFileName().c_str(), std::ios_base::out|std::ios_base::binary );
+    fout << str.as_string();
+}
+
+void PasvServer::onWriteComplete(const TcpConnectionPtr& conn)
+{
+    if( cb_ ) cb_();
+    conn->shutdown();
 }
 
 ///////////////////////////////////////////
@@ -114,6 +142,33 @@ void FtpSession::ExecuteCmd( FtpCommand& cmd )
     FtpSession::cmd_callback _cb = FindCallBack( cmd.getCmd() );
     if ( _cb )
         (this->*_cb)( cmd );
+}
+
+void FtpSession::DisconnectCallBack()
+{
+    switch ( cliRole.getCmdStatus() )
+    {
+        case E_FTP_SESSION_CMD_STOR:
+        {
+            StringPiece bufCom( util::string_format( mapResponse[226], "Transfer complete" ) );
+            conn->send( bufCom );
+
+            cliRole.setCmdStatus( 0 );
+            cliRole.setFileName("");
+            cliRole.clearFileData();
+            break;
+        }
+        case E_FTP_SESSION_CMD_RETR:
+        {
+            std::string resTran = util::string_format( mapResponse[226], "Transfer complate." );
+            StringPiece bufTran( resTran );
+            conn->send( bufTran );
+
+            cliRole.setCmdStatus( 0 );
+            break;
+        }
+    }
+
 }
 
 void FtpSession::InitOpcodeHandler()
@@ -189,27 +244,16 @@ void FtpSession::HandlerFtpPort(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpPasv(FtpCommand& cmd)
 {
+    pasvSer.reset();
     PasvWeakPtr pasvWeak(pasvSer);
     if ( !pasvWeak.expired() )
     {
-        uint16_t port = cliRole.getPort();
-        InetAddress listenAddr("172.16.1.174", port);
-        const struct sockaddr_in* addr = static_cast<const struct sockaddr_in*>(implicit_cast<const void*>(listenAddr.getSockAddr()));
-
-        unsigned long  hostip = ntohl( addr->sin_addr.s_addr );
-
-        std::string resonse = util::string_format( mapResponse[227], (hostip >> 24) & 0xff,
-                                                   (hostip >> 16) & 0xff, (hostip >> 8) & 0xff,
-                                                   hostip & 0xff, (port >> 8) & 0xff, port & 0xff );
-        StringPiece buf( resonse );
-        conn->send( buf );
-        return;
     }
 
-    unsigned short int port = 1042;//static_cast<uint16_t >( ( rand() % 10000 ) + 1024 );
+    unsigned short int port = static_cast<uint16_t >( ( rand() % 10000 ) + 1024 );
     InetAddress listenAddr("172.16.1.174", port);
     cliRole.setPort(port);
-    pasvSer = PasvServerPtr( new PasvServer( loop, listenAddr ) );
+    pasvSer = PasvServerPtr( new PasvServer( loop, listenAddr, &cliRole ) );
 
     const struct sockaddr_in* addr = static_cast<const struct sockaddr_in*>(implicit_cast<const void*>(listenAddr.getSockAddr()));
 
@@ -227,7 +271,7 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
 {
     DIR *dir_ptr;
     int mode;
-    char liststr[20480] = {0};
+    std::string strList;
 
     struct dirent *direntp;
     struct stat info;
@@ -241,7 +285,6 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
     {
         if(stat(direntp->d_name,&info) == -1)
         {
-            /*log*/
             return ;
         }
         else
@@ -278,9 +321,9 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
                 sprintf(tempgp.gr_name,"%d",info.st_gid);
                 gp_ptr = &tempgp;
             }
-            sprintf(liststr,"%s%s%4d %-8s %-8s %8ld %.12s %s\n",liststr,
-                    modestr, static_cast<int>(info.st_nlink),pw_ptr->pw_name,gp_ptr->gr_name,
-                    static_cast<long>(info.st_size),4 + ctime(&info.st_mtime),direntp->d_name);
+            strList += util::string_format( "%s%4d %-8s %-8s %8ld %.12s %s\n",
+                                 modestr, static_cast<int>(info.st_nlink),pw_ptr->pw_name,gp_ptr->gr_name,
+                                 static_cast<long>(info.st_size),4 + ctime(&info.st_mtime),direntp->d_name );
         }
     }
     closedir(dir_ptr);
@@ -291,7 +334,7 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
     StringPiece bufList( resList );
     conn->send( bufList );
 
-    StringPiece bufCon( liststr );
+    StringPiece bufCon( strList );
     pasvSer->send( bufCon );
 
     StringPiece bufOk( resOk );
@@ -374,33 +417,82 @@ void FtpSession::HandlerFtpRetr(FtpCommand& cmd)
     PasvWeakPtr pasvWeak(pasvSer);
     if ( !pasvWeak.expired() )
     {
+        cliRole.setCmdStatus( E_FTP_SESSION_CMD_RETR );
+        pasvSer->setDisconnectCallback( boost::bind( &FtpSession::DisconnectCallBack, this ) );
         pasvSer->send( File );
-        pasvSer.reset();
     }
-
-    StringPiece bufTran( resTran );
-    conn->send( bufTran );
 }
 
 void FtpSession::HandlerFtpSize(FtpCommand& cmd)
 {
+    struct stat info;
+    if ( stat( cmd.getParam().c_str(), &info ) == -1 )
+    {
+        return;
+    }
 
+    StringPiece response( util::string_format( mapResponse[213], cmd.getParam().c_str(), info.st_size ) );
+    conn->send( response );
 }
 
 void FtpSession::HandlerFtpRmd(FtpCommand& cmd)
 {
+    DIR *dir_ptr;
+    StringPiece buf( mapResponse[215] );
 
+    if((dir_ptr = opendir(cmd.getParam().c_str())) != NULL)
+    {
+        conn->send( buf );
+        return;
+    }
+    /*loop delete this dir file ,then call rmdir*/
+    if(-1 == rmdir(cmd.getParam().c_str()))
+    {
+        conn->send( buf );
+        return;
+    }
+
+    StringPiece bufRes( util::string_format( mapResponse[257], cmd.getParam().c_str() ) );
+    conn->send( bufRes );
 }
+
 void FtpSession::HandlerFtpStor(FtpCommand& cmd)
 {
+    PasvWeakPtr pasvWeak(pasvSer);
+    if ( pasvWeak.expired() ) return ;
 
+    StringPiece bufRes( util::string_format( mapResponse[150], "Ok to send data" ) );
+    conn->send( bufRes );
+
+    pasvSer->setDisconnectCallback( boost::bind(&FtpSession::DisconnectCallBack, this ) );
+    cliRole.setFileName( cmd.getParam() );
+    cliRole.setCmdStatus( E_FTP_SESSION_CMD_STOR );
 }
+
 void FtpSession::HandlerFtpNlst(FtpCommand& cmd)
 {
 
 }
+
 void FtpSession::HandlerFtpMkd(FtpCommand& cmd)
 {
+    DIR* dir_ptr;
+    StringPiece bufRes( mapResponse[215] );
+
+    if ( ( dir_ptr = opendir( cmd.getParam().c_str() ) ) != NULL )
+    {
+        conn->send( bufRes );
+        return;
+    }
+
+    if ( mkdir( cmd.getParam().c_str(), 0777 ) == -1 )
+    {
+        conn->send( bufRes );
+        return;
+    }
+
+    StringPiece buf( util::string_format( mapResponse[257], cmd.getParam().c_str() ) );
+    conn->send( buf );
 
 }
 void FtpSession::HandlerFtpType(FtpCommand& cmd)

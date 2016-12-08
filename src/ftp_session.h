@@ -21,20 +21,36 @@ namespace net
 class PasvServer
 {
 public:
+
+    typedef boost::function<void ()> DisconnectCallback;
+
     PasvServer(muduo::net::EventLoop* loop,
-               const muduo::net::InetAddress& listenAddr);
+               const muduo::net::InetAddress& listenAddr,
+               FtpClient* cli );
 
     void start();
+    void setDisconnectCallback( const DisconnectCallback& cb )
+    { cb_ = cb; }
+
     void send( StringPiece& str );
+    bool isOnline();
+    bool getStatus();
 private:
+
+    typedef boost::weak_ptr<TcpConnection> TcpConnWeakPtr;
     void onConnection(const muduo::net::TcpConnectionPtr& conn);
 
     void onMessage(const muduo::net::TcpConnectionPtr& conn,
                    muduo::net::Buffer* buf,
                    muduo::Timestamp time);
+    void onWriteComplete(const TcpConnectionPtr& conn);
 
     TcpServer server_;
     TcpConnectionPtr conn_;
+    FtpClient* cli_;
+    bool byOnline;
+
+    DisconnectCallback cb_;
 };
 
 ////////////////////////////////////
@@ -59,6 +75,10 @@ private:
 class FtpSession
 {
 public:
+    enum {
+        E_FTP_SESSION_CMD_STOR = 1,
+        E_FTP_SESSION_CMD_RETR = 2,
+    };
     FtpSession( EventLoop* loop, TcpConnectionPtr co );
 
     ~FtpSession();
@@ -80,6 +100,7 @@ private:
 
     void InitOpcodeHandler();
     void InitReponseCode();
+    void DisconnectCallBack();
 
     FtpClient        cliRole;
     EventLoop*       loop;

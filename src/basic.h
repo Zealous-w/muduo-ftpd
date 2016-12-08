@@ -5,6 +5,9 @@
 #include <vector>
 #include <stdio.h>
 #include <stdint.h>
+
+#include <muduo/base/StringPiece.h>
+#include <muduo/net/Buffer.h>
 #include "util.h"
 
 class FtpCommand
@@ -59,19 +62,35 @@ public:
 
     ~FtpClient(){}
 
+    //typedef std::vector< muduo::StringPiece > DataContainer;
+    typedef std::vector< muduo::net::Buffer > DataContainer;
+
     DEFINE_CLIENT_FUNC( User, user, std::string& )
     DEFINE_CLIENT_FUNC( Pass, passwd, std::string& )
+    DEFINE_CLIENT_FUNC( Ip, strIp, std::string )
+    DEFINE_CLIENT_FUNC( FileName, filename, std::string )
+    DEFINE_CLIENT_FUNC( Port, port, uint16_t )
     DEFINE_CLIENT_FUNC( Status, byStatus, bool )
     DEFINE_CLIENT_FUNC( Ascii, byAscii, bool )
-    DEFINE_CLIENT_FUNC( Port, port, uint16_t )
-    DEFINE_CLIENT_FUNC( Ip, strIp, std::string )
+    DEFINE_CLIENT_FUNC( CmdStatus, cmdStatus, int )
+
+//    void addFileData( muduo::StringPiece& str ) { filedata.push_back( str ); }
+//    DataContainer& getFileData() { return filedata; }
+//    void clearFileData(){ filedata.clear(); }
+    void addFileData( muduo::StringPiece& str ) { filedata.append( str ); }
+    muduo::net::Buffer& getFileData() { return filedata; }
+    void clearFileData() { filedata.retrieveAll(); }
 private:
+
     std::string user;
     std::string passwd;
+    std::string filename;
+    muduo::net::Buffer filedata;
     std::string strIp;
     uint16_t    port;     //port mode || pasv
     bool        byAscii;
     bool        byStatus;
+    int         cmdStatus;
 };
 
 #endif //MUDUO_BASIC_H
