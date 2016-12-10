@@ -62,7 +62,6 @@ public:
 
     ~FtpClient(){}
 
-    //typedef std::vector< muduo::StringPiece > DataContainer;
     typedef std::vector< muduo::net::Buffer > DataContainer;
 
     DEFINE_CLIENT_FUNC( User, user, std::string& )
@@ -74,9 +73,6 @@ public:
     DEFINE_CLIENT_FUNC( Ascii, byAscii, bool )
     DEFINE_CLIENT_FUNC( CmdStatus, cmdStatus, int )
 
-//    void addFileData( muduo::StringPiece& str ) { filedata.push_back( str ); }
-//    DataContainer& getFileData() { return filedata; }
-//    void clearFileData(){ filedata.clear(); }
     void addFileData( muduo::StringPiece& str ) { filedata.append( str ); }
     muduo::net::Buffer& getFileData() { return filedata; }
     void clearFileData() { filedata.retrieveAll(); }

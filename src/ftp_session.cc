@@ -345,7 +345,8 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpQuit(FtpCommand& cmd)
 {
-
+    StringPiece buf( mapResponse[221] );
+    conn->send( buf );
 }
 
 void FtpSession::HandlerFtpPwd(FtpCommand& cmd)
