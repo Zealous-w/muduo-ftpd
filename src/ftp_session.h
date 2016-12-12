@@ -17,27 +17,38 @@ namespace muduo
 namespace net
 {
 
-///////////////////////////////////
-class PasvServer
+/////////////////TransferData//////////////////
+class TransferData
 {
 public:
+    enum Mode{
+        E_TRANSFER_TYPE_PASV = 0,
+        E_TRANSFER_TYPE_PORT = 1,
+    };
 
     typedef boost::function<void ()> DisconnectCallback;
 
-    PasvServer(muduo::net::EventLoop* loop,
-               const muduo::net::InetAddress& listenAddr,
-               FtpClient* cli );
+    TransferData(muduo::net::EventLoop* loop, FtpClient* cli);
 
     void start();
+    void createDataChannel( const muduo::net::InetAddress& addr, int mode );
     void setDisconnectCallback( const DisconnectCallback& cb )
     { cb_ = cb; }
 
     void send( StringPiece& str );
-    bool isOnline();
-    bool getStatus();
+    void close();
+
+    void setMode( bool mode )
+    { mode_ = mode; }
+
+    bool getMode()
+    { return mode_; }
 private:
 
     typedef boost::weak_ptr<TcpConnection> TcpConnWeakPtr;
+    typedef boost::shared_ptr<TcpServer>   TcpServerPtr;
+    typedef boost::shared_ptr<TcpClient>   TcpClientPtr;
+
     void onConnection(const muduo::net::TcpConnectionPtr& conn);
 
     void onMessage(const muduo::net::TcpConnectionPtr& conn,
@@ -45,33 +56,16 @@ private:
                    muduo::Timestamp time);
     void onWriteComplete(const TcpConnectionPtr& conn);
 
-    TcpServer server_;
+    bool      mode_;
+    TcpServerPtr server_;
+    TcpClientPtr client_;
     TcpConnectionPtr conn_;
+    muduo::net::EventLoop* loop_;
     FtpClient* cli_;
-    bool byOnline;
-
     DisconnectCallback cb_;
 };
 
-////////////////////////////////////
-class PortClient
-{
-public:
-    PortClient(muduo::net::EventLoop* loop,
-                const muduo::net::InetAddress& serverAddr);
-
-    void start();
-private:
-    void onConnection(const muduo::net::TcpConnectionPtr& conn);
-
-    void onMessage(const muduo::net::TcpConnectionPtr& conn,
-                   muduo::net::Buffer* buf,
-                   muduo::Timestamp time);
-private:
-    TcpClient client_;
-};
-
-////////////////////////////////////
+///////////////FtpSession////////////////
 class FtpSession
 {
 public:
@@ -87,11 +81,8 @@ public:
     cmd_callback FindCallBack( std::string& strCmd );
 
     void ExecuteCmd( FtpCommand& cmd );
-private:
-    typedef boost::shared_ptr<PasvServer> PasvServerPtr;
-    typedef boost::weak_ptr<PasvServer>   PasvWeakPtr;
-    typedef boost::shared_ptr<PortClient> PortClientPtr;
 
+private:
     typedef std::map< std::string, cmd_callback > MapHandlerContainer;
     MapHandlerContainer mapHandlerFunc;
 
@@ -102,11 +93,10 @@ private:
     void InitReponseCode();
     void DisconnectCallBack();
 
-    FtpClient        cliRole;
-    EventLoop*       loop;
-    TcpConnectionPtr conn;
-    PasvServerPtr    pasvSer;
-    PortClientPtr    portCli;
+    FtpClient        cli_;
+    EventLoop*       loop_;
+    TcpConnectionPtr conn_;
+    TransferData     data_;
 
 private:
     void HandlerFtpAuth(FtpCommand& cmd);

@@ -30,7 +30,7 @@ std::string string_format( const std::string fmt, ... )
     int size = (static_cast<int>(fmt.size())) * 2 + 50; /* Reserve two times as much as the length of the fmt_str */
     std::string str;
     va_list ap;
-    while (1) {     // Maximum two passes on a POSIX system...
+    while ( true ) {     // Maximum two passes on a POSIX system...
         str.resize(size);
         va_start(ap, fmt);
         int n = vsnprintf(const_cast<char*>(str.data()), size, fmt.c_str(), ap);
