@@ -118,6 +118,7 @@ private:
     void HandlerFtpMkd(FtpCommand& cmd);
     void HandlerFtpType(FtpCommand& cmd);
     void HandlerFtpCdup(FtpCommand& cmd);
+    void HandlerFtpFeat(FtpCommand& cmd);
 };
 }
 }

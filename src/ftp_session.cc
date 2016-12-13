@@ -206,6 +206,7 @@ void FtpSession::InitOpcodeHandler()
     mapHandlerFunc["MKD"]  = &FtpSession::HandlerFtpMkd;
     mapHandlerFunc["TYPE"] = &FtpSession::HandlerFtpType;
     mapHandlerFunc["CDUP"] = &FtpSession::HandlerFtpCdup;
+    mapHandlerFunc["FEAT"] = &FtpSession::HandlerFtpFeat;
 }
 
 void FtpSession::InitReponseCode()
@@ -214,6 +215,7 @@ void FtpSession::InitReponseCode()
 
     mapResponse[150] = "150 %s\r\n";
     mapResponse[200] = "200 %s\r\n";
+    mapResponse[211] = "211 Extension supported\r\n";
     mapResponse[220] = "220 the service is ready(khaki ftpd 1.0.0 free software) \r\n";
     mapResponse[221] = "221 Goodbye dear\r\n";
     mapResponse[226] = "226 %s\r\n";
@@ -246,13 +248,26 @@ void FtpSession::HandlerFtpPass(FtpCommand& cmd)
 
 void FtpSession::HandlerFtpPort(FtpCommand& cmd)
 {
-    cli_.setPort( 20 );
-    cli_.setIp( conn_->peerAddress().toIp().c_str() );
+    std::vector<std::string> vToken;
+    util::strSplit( cmd.getParam(), ",", vToken );
+    std::string strIp;
+    int port;
+
+    if ( vToken.size() != 6 ) return;
+    strIp = vToken[0] + "." + vToken[1] + "." + vToken[2] + "." + vToken[3];
+    port = atoi( vToken[4].c_str() ) * 256 + atoi( vToken[5].c_str() );
+
+    cli_.setPort( static_cast<uint16_t>(port) );
+    cli_.setIp( strIp );
     InetAddress serverAddr(cli_.getIp().c_str(), cli_.getPort());
 
     data_.createDataChannel( serverAddr, 1 );
     data_.setMode( 1 );
     data_.start();
+
+    std::string resonse = util::string_format( mapResponse[200], "PORT command successful." );
+    StringPiece buf( resonse );
+    conn_->send( buf );
 }
 
 void FtpSession::HandlerFtpPasv(FtpCommand& cmd)
@@ -521,6 +536,13 @@ void FtpSession::HandlerFtpCdup(FtpCommand& cmd)
     StringPiece buf( response );
     conn_->send( buf );
 }
+
+void FtpSession::HandlerFtpFeat(FtpCommand& cmd)
+{
+    StringPiece buf( mapResponse[211] );
+    conn_->send( buf );
+}
+
 
 }
 }
