@@ -320,11 +320,9 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
         if(mode & S_IWUSR) modestr[2] = 'w';
         if(mode & S_IXUSR) modestr[3] = 'x';
 
-
         if(mode & S_IRGRP) modestr[4] = 'r';
         if(mode & S_IWGRP) modestr[5] = 'w';
         if(mode & S_IXGRP) modestr[6] = 'x';
-
 
         if(mode & S_IROTH) modestr[7] = 'r';
         if(mode & S_IWOTH) modestr[8] = 'w';
@@ -342,10 +340,12 @@ void FtpSession::HandlerFtpList(FtpCommand& cmd)
             sprintf(tempgp.gr_name,"%d",info.st_gid);
             gp_ptr = &tempgp;
         }
+
         strList += util::string_format( "%s%4d %-8s %-8s %8ld %.12s %s\n",
                              modestr, static_cast<int>(info.st_nlink),pw_ptr->pw_name,gp_ptr->gr_name,
                              static_cast<long>(info.st_size),4 + ctime(&info.st_mtime),direntp->d_name );
     }
+
     closedir(dir_ptr);
 
     std::string resList = util::string_format( mapResponse[150], "Here comes the directory listing." );

@@ -21,7 +21,8 @@ namespace net
 class TransferData
 {
 public:
-    enum Mode{
+    enum Mode
+    {
         E_TRANSFER_TYPE_PASV = 0,
         E_TRANSFER_TYPE_PORT = 1,
     };
@@ -43,6 +44,7 @@ public:
 
     bool getMode()
     { return mode_; }
+
 private:
 
     typedef boost::weak_ptr<TcpConnection> TcpConnWeakPtr;
@@ -69,7 +71,8 @@ private:
 class FtpSession
 {
 public:
-    enum {
+    enum
+    {
         E_FTP_SESSION_CMD_STOR = 1,
         E_FTP_SESSION_CMD_RETR = 2,
     };
