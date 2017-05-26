@@ -95,7 +95,6 @@ void TransferData::onConnection(const muduo::net::TcpConnectionPtr& conn)
     }
     else
     {
-        /// close connect
         if( cb_ ) cb_();
     }
 }
@@ -138,7 +137,6 @@ FtpSession::FtpSession( EventLoop* lo, TcpConnectionPtr co )
 
 FtpSession::~FtpSession()
 {
-
 }
 
 FtpSession::cmd_callback FtpSession::FindCallBack( std::string& strCmd )
@@ -273,7 +271,7 @@ void FtpSession::HandlerFtpPort(FtpCommand& cmd)
 void FtpSession::HandlerFtpPasv(FtpCommand& cmd)
 {
     unsigned short int port = static_cast<uint16_t >( ( rand() % 10000 ) + 1024 );
-    InetAddress listenAddr("172.16.1.174", port);
+    InetAddress listenAddr("192.168.65.128", port);
     cli_.setPort(port);
 
     data_.createDataChannel( listenAddr, 0 );
@@ -367,6 +365,7 @@ void FtpSession::HandlerFtpQuit(FtpCommand& cmd)
 {
     StringPiece buf( mapResponse[221] );
     conn_->send( buf );
+    conn_->shutdown();
 }
 
 void FtpSession::HandlerFtpPwd(FtpCommand& cmd)

@@ -30,11 +30,17 @@ void FtpServer::onConnection(const TcpConnectionPtr& conn)
   LOG_INFO << "FtpServer - " << conn->peerAddress().toIpPort() << " -> "
            << conn->localAddress().toIpPort() << " is "
            << (conn->connected() ? "UP" : "DOWN");
-
-  mapSession_.insert( std::make_pair(conn, FtpSessionPtr(new FtpSession( loop, const_cast<TcpConnectionPtr&>(conn) )) ));
-
-  StringPiece buf("220 the serviceis ready(khaki ftpd1.0.0 free software) \r\n");
-  conn->send( buf );
+  if (conn->connected())
+  {
+    mapSession_.insert( std::make_pair(conn, FtpSessionPtr(new FtpSession( loop, const_cast<TcpConnectionPtr&>(conn) )) ));
+    StringPiece buf("220 the serviceis ready(khaki ftpd1.0.0 free software) \r\n");
+    conn->send( buf );
+  }
+  else
+  {
+    mapSession_.erase(conn);
+  }
+  LOG_INFO << "server online num : " << mapSession_.size();
 }
 
 void FtpServer::onMessage(const TcpConnectionPtr& conn,

@@ -25,15 +25,15 @@ void strSplit(const std::string & src, const std::string & sep,
     if ( s.length() || tokens.size() ) tokens.push_back(s);
 }
 
-std::string string_format( const std::string fmt, ... )
+std::string string_format( const std::string fmt_str, ... )
 {
-    int size = (static_cast<int>(fmt.size())) * 2 + 50;
+    int size = (static_cast<int>(fmt_str.size())) * 2 + 50;
     std::string str;
     va_list ap;
     while ( true ) {
         str.resize(size);
-        va_start(ap, fmt);
-        int n = vsnprintf(const_cast<char*>(str.data()), size, fmt.c_str(), ap);
+        va_start(ap, fmt_str);
+        int n = vsnprintf(const_cast<char*>(str.data()), size, fmt_str.c_str(), ap);
         va_end(ap);
         if (n > -1 && n < size) {
             str.resize(n);
